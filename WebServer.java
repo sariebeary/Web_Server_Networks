@@ -71,22 +71,30 @@ public class WebServer {
         //
         // A BufferedReader might be useful here, but you can also
         // solve this in many other ways.
+
         // read request from the socket
         BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        StringBuilder response = new StringBuilder();
+        StringBuilder req = new StringBuilder();
         String userInput;
         while ((userInput = in.readLine()) != null) {
             if (userInput.length() == 0) // end of headers
             {
                 break;
             }
-            response.append(userInput);
-            response.append("\r\n");
+            req.append(userInput);
+            req.append("\r\n");
         }
         in.close();
-        //HttpRequest request = parseRequest(response.toString().getBytes());
-        //byte[] responseClient = formHttpResponse(request);
-        //sendHttpResponse(client, responseClient);
+        HttpRequest request = new HttpRequest();
+        request.parseRequest(req.toString());
+        System.out.println("HTTP request read");
+        if (request.isPersistent() == 1) {
+            client.setSoTimeout(2000);
+        }
+        byte[] response = formHttpResponse(request);
+        System.out.println("Formed a response for the client");
+        sendHttpResponse(client, response);
+        System.out.println("Sent response to the client");
 
     }
 
@@ -98,7 +106,7 @@ public class WebServer {
      */
     private void sendHttpResponse(Socket client, byte[] response) throws IOException {
         // NEEDS IMPLEMENTATION
-        DataOutputStream out = new DataOutputStream(client.getOutputStream());  
+        DataOutputStream out = new DataOutputStream(client.getOutputStream());
         //PrintWriter out = new PrintWriter(client.getOutputStream(), true);
         //out.print(response);
         //out.close();
@@ -110,7 +118,7 @@ public class WebServer {
      * @param request the HTTP request
      * @return a byte[] that contains the data that should be send to the client
      */
-    private byte[] formHttpResponse(HttpRequest request) {
+    private byte[] formHttpResponse(HttpRequest request) throws IOException {
         // NEEDS IMPLEMENTATION
         // Make sure you follow the (modified) HTTP specification
         // in the assignment regarding header fields and newlines
@@ -119,9 +127,15 @@ public class WebServer {
         // If you want to you can use a StringBuilder here
         // but it is possible to solve this in multiple different ways.
 
-        // HTTP/1.1 P status-Code CRLF
-        // 
-        return null;
+        // HTTP/1.* SP 200 OK CRLF
+        // Content-Length: SP Number CRLF
+        // CRLF 
+        byte[] data = Files.readAllBytes(Paths.get(request.getFilePath()));
+        String statusLine = request.getVerison() + " 200 OK\r\n";
+        String entityHeader = "Content-Length: " + data.length + "\r\n\r\n"; 
+        byte[] response = concatenate(statusLine.getBytes(), entityHeader.getBytes());
+
+        return response;
 
     }
 
@@ -144,6 +158,9 @@ public class WebServer {
 class HttpRequest {
 
     private String filePath;
+    private String verison; // HTTP/1.0 or 1.1 
+    private String fieldName;
+    private String fieldValue;
 
     // NEEDS IMPLEMENTATION
     // This class should represent a HTTP request.
@@ -158,7 +175,38 @@ class HttpRequest {
 
     // NEEDS IMPLEMENTATION
     // If you add more private variables, add your getter methods here
-    public static HttpRequest parseRequest(byte[] data) {
-        return null;
+    String getVerison() {
+        return verison;
+    }
+
+    String getFieldName() {
+        return fieldName;
+    }
+
+    String getFieldValue() {
+        return fieldValue;
+    }
+
+    int isPersistent() {
+        if (verison.equals("HTTP/1.0")) {
+            return 0;
+        } else if (verison.equals("HTTP/1.1")) {
+            return 1;
+        }
+        return -1;
+    }
+
+    public void parseRequest(String data) {
+        // Request format 
+        // "GET" SP absolutepath SP "HTTP/1.*" CRLF 
+        // Field-Name: SP FieldValue CRLF 
+        // CRLF 
+        String[] request = data.split("\r\n"); //CRLF
+        String[] requestLine = request[0].split(" "); //SP
+        filePath = requestLine[1];
+        verison = requestLine[2];
+        String[] headerLine = request[1].split(" "); //SP 
+        fieldName = headerLine[0].substring(0, headerLine[0].length() - 1);
+        fieldValue = headerLine[1];
     }
 }
