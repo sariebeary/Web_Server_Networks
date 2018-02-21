@@ -40,9 +40,12 @@ public class WebServer {
             // create ServerSocket
             ServerSocket welcomeSocket = new ServerSocket(port);
             // listen to new connection requests 
-            Socket clientSocket = welcomeSocket.accept();
-            // once tcp connection established, pass connection socket to handleClientSocket
-            handleClientSocket(clientSocket);
+            while (true) {
+                Socket clientSocket = welcomeSocket.accept();
+                System.out.println("Connection established with new client.");
+                // once tcp connection established, pass connection socket to handleClientSocket
+                handleClientSocket(clientSocket);
+            }
         } catch (IOException e) {
             System.out.println("Exception caught when trying to listen on port "
                     + port);
@@ -68,8 +71,22 @@ public class WebServer {
         //
         // A BufferedReader might be useful here, but you can also
         // solve this in many other ways.
-        PrintWriter out = new PrintWriter(client.getOutputStream(), true);
+        // read request from the socket
         BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String userInput;
+        while ((userInput = in.readLine()) != null) {
+            if (userInput.length() == 0) // end of headers
+            {
+                break;
+            }
+            response.append(userInput);
+            response.append("\r\n");
+        }
+        in.close();
+        //HttpRequest request = parseRequest(response.toString().getBytes());
+        //byte[] responseClient = formHttpResponse(request);
+        //sendHttpResponse(client, responseClient);
 
     }
 
@@ -79,8 +96,12 @@ public class WebServer {
      * @param client Socket that handles the client connection
      * @param response the response that should be send to the client
      */
-    private void sendHttpResponse(Socket client, byte[] response) {
+    private void sendHttpResponse(Socket client, byte[] response) throws IOException {
         // NEEDS IMPLEMENTATION
+        DataOutputStream out = new DataOutputStream(client.getOutputStream());  
+        //PrintWriter out = new PrintWriter(client.getOutputStream(), true);
+        //out.print(response);
+        //out.close();
     }
 
     /**
@@ -97,6 +118,9 @@ public class WebServer {
         // but you do not have to.
         // If you want to you can use a StringBuilder here
         // but it is possible to solve this in multiple different ways.
+
+        // HTTP/1.1 P status-Code CRLF
+        // 
         return null;
 
     }
@@ -119,14 +143,19 @@ public class WebServer {
 
 class HttpRequest {
 
+    private String filePath;
+
     // NEEDS IMPLEMENTATION
     // This class should represent a HTTP request.
     // Feel free to add more attributes if needed.
-    private String filePath;
+    public HttpRequest() {
+
+    }
 
     String getFilePath() {
         return filePath;
     }
+
     // NEEDS IMPLEMENTATION
     // If you add more private variables, add your getter methods here
     public static HttpRequest parseRequest(byte[] data) {
