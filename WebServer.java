@@ -27,15 +27,7 @@ public class WebServer {
 
     private void start(int port) {
         System.out.println("Starting server on port " + port);
-        // NEEDS IMPLEMENTATION
-        // You have to understand how sockets work and how to program
-        // them in Java.
-        // A good starting point is the socket tutorial from Oracle
-        // http://docs.oracle.com/javase/tutorial/networking/sockets/
-        // But there are a billion other resources on the Internet.
-        //
-        // Hints
-        // 1. You should set up the socket(s) and then call handleClientSocket.
+   
         try {
             // create ServerSocket
             ServerSocket welcomeSocket = new ServerSocket(port);
@@ -47,7 +39,7 @@ public class WebServer {
                 handleClientSocket(clientSocket);
             }
         } catch (IOException e) {
-            System.out.println("Exception caught when trying to listen on port "
+            System.out.println("Exception caught when trying to listen on port."
                     + port);
             System.out.println(e.getMessage());
         }
@@ -59,44 +51,47 @@ public class WebServer {
      *
      * @param client Socket that handles the client connection
      */
-    private void handleClientSocket(Socket client) throws IOException {
-        // NEEDS IMPLEMENTATION
-        // This function is supposed to handle the request
-        // Things to do:
-        // (1) Read the request from the socket 
-        // (2) Parse the request and set variables of 
-        //     the HttpRequest class (at the end of the file!)
-        // (3) Form a response using formHttpResponse.
-        // (4) Send a response using sendHttpResponse.
-        //
-        // A BufferedReader might be useful here, but you can also
-        // solve this in many other ways.
+     private void handleClientSocket(Socket client) throws IOException {
 
         // read request from the socket
-        BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        StringBuilder req = new StringBuilder();
-        String userInput;
-        while ((userInput = in.readLine()) != null) {
-            if (userInput.length() == 0) // end of headers
-            {
-                break;
+        try {
+            BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+            StringBuilder req = new StringBuilder();
+            String userInput;
+            while ((userInput = in.readLine()) != null) {
+                System.out.println(userInput);
+                if (userInput.length() == 0) // end of headers
+                {
+                    break;
+                }
+                req.append(userInput);
+                req.append("\r\n");
             }
-            req.append(userInput);
-            req.append("\r\n");
+            HttpRequest request = new HttpRequest();
+            request.parseRequest(req.toString());
+            System.out.println("HTTP request read");
+            if (request.isPersistent() == 1) {
+                client.setSoTimeout(2000); //set timer to 2 seconds 
+				System.out.println("Persistent connection established. Setting timer.");
+            }
+            byte[] response = formHttpResponse(request);
+            System.out.println("Formed a response for the client");
+            sendHttpResponse(client, response);
+            System.out.println("Sent response to the client");
+            if (request.isPersistent() == 0) {
+                in.close();
+                client.close();
+                System.out.println("Connection closed");
+
+            }
+        } catch (SocketTimeoutException e) {
+            client.close();
+            System.out.println("Timeout. Connection closed. ");
+
         }
-        in.close();
-        HttpRequest request = new HttpRequest();
-        request.parseRequest(req.toString());
-        System.out.println("HTTP request read");
-        if (request.isPersistent() == 1) {
-            client.setSoTimeout(2000);
-        }
-        byte[] response = formHttpResponse(request);
-        System.out.println("Formed a response for the client");
-        sendHttpResponse(client, response);
-        System.out.println("Sent response to the client");
 
     }
+	
 
     /**
      * Sends a response back to the client
@@ -105,11 +100,16 @@ public class WebServer {
      * @param response the response that should be send to the client
      */
     private void sendHttpResponse(Socket client, byte[] response) throws IOException {
-        // NEEDS IMPLEMENTATION
-        DataOutputStream out = new DataOutputStream(client.getOutputStream());
-        //PrintWriter out = new PrintWriter(client.getOutputStream(), true);
-        //out.print(response);
-        //out.close();
+        try { // NEEDS IMPLEMENTATION
+            BufferedOutputStream out = new BufferedOutputStream(client.getOutputStream());
+            out.write(response);
+			out.flush();
+            out.close();
+        } catch (Exception e) {
+            System.out.println("Unable to send response.");
+            System.out.println(e.getMessage());
+            System.exit(0);
+        }
     }
 
     /**
@@ -119,23 +119,21 @@ public class WebServer {
      * @return a byte[] that contains the data that should be send to the client
      */
     private byte[] formHttpResponse(HttpRequest request) throws IOException {
-        // NEEDS IMPLEMENTATION
-        // Make sure you follow the (modified) HTTP specification
-        // in the assignment regarding header fields and newlines
-        // You might want to use the concatenate method,
-        // but you do not have to.
-        // If you want to you can use a StringBuilder here
-        // but it is possible to solve this in multiple different ways.
-
         // HTTP/1.* SP 200 OK CRLF
         // Content-Length: SP Number CRLF
         // CRLF 
-        byte[] data = Files.readAllBytes(Paths.get(request.getFilePath()));
+        byte[] data = Files.readAllBytes(Paths.get(System.getProperty("user.dir") + request.getFilePath()));
         String statusLine = request.getVerison() + " 200 OK\r\n";
-        String entityHeader = "Content-Length: " + data.length + "\r\n\r\n"; 
+        System.out.print(statusLine);
+        String entityHeader = "Content-Length: " + data.length + "\r\n\r\n";
+        System.out.print(entityHeader);
         byte[] response = concatenate(statusLine.getBytes(), entityHeader.getBytes());
+		response = concatenate(response, data);
 
-        return response;
+	
+        return response; 
+		
+		
 
     }
 
@@ -159,12 +157,7 @@ class HttpRequest {
 
     private String filePath;
     private String verison; // HTTP/1.0 or 1.1 
-    private String fieldName;
-    private String fieldValue;
 
-    // NEEDS IMPLEMENTATION
-    // This class should represent a HTTP request.
-    // Feel free to add more attributes if needed.
     public HttpRequest() {
 
     }
@@ -173,18 +166,8 @@ class HttpRequest {
         return filePath;
     }
 
-    // NEEDS IMPLEMENTATION
-    // If you add more private variables, add your getter methods here
     String getVerison() {
         return verison;
-    }
-
-    String getFieldName() {
-        return fieldName;
-    }
-
-    String getFieldValue() {
-        return fieldValue;
     }
 
     int isPersistent() {
@@ -205,8 +188,5 @@ class HttpRequest {
         String[] requestLine = request[0].split(" "); //SP
         filePath = requestLine[1];
         verison = requestLine[2];
-        String[] headerLine = request[1].split(" "); //SP 
-        fieldName = headerLine[0].substring(0, headerLine[0].length() - 1);
-        fieldValue = headerLine[1];
     }
 }
